@@ -1,90 +1,66 @@
-import sqlite3
-import os
 from datetime import datetime
-
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "database", "portfolios.db"
-)
-
-
-def _conn():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+from app.supabase_client import get_supabase
 
 
 def init_db():
-    with _conn() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS portfolios (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                name          TEXT    NOT NULL,
-                strategy_note TEXT    NOT NULL DEFAULT '',
-                created_at    TEXT    NOT NULL
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS holdings (
-                id             INTEGER PRIMARY KEY AUTOINCREMENT,
-                portfolio_id   INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE,
-                symbol         TEXT    NOT NULL,
-                quantity       REAL    NOT NULL,
-                purchase_price REAL    NOT NULL,
-                purchase_date  TEXT    NOT NULL
-            )
-        """)
+    """Verify Supabase connection. Tables are pre-created via Supabase SQL editor."""
+    try:
+        get_supabase().table("portfolios").select("id").limit(1).execute()
+    except Exception as e:
+        raise RuntimeError(f"Supabase connection failed: {e}")
 
 
 def list_portfolios():
-    with _conn() as conn:
-        rows = conn.execute("SELECT * FROM portfolios ORDER BY created_at").fetchall()
-        return [dict(r) for r in rows]
+    res = get_supabase().table("portfolios").select("*").order("created_at").execute()
+    return res.data
 
 
 def create_portfolio(name):
-    with _conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO portfolios (name, strategy_note, created_at) VALUES (?, '', ?)",
-            (name, datetime.now().isoformat())
-        )
-        return cur.lastrowid
+    res = get_supabase().table("portfolios").insert({
+        "name": name,
+        "strategy_note": "",
+        "created_at": datetime.now().isoformat(),
+    }).execute()
+    return res.data[0]["id"]
 
 
 def rename_portfolio(portfolio_id, new_name):
-    with _conn() as conn:
-        conn.execute("UPDATE portfolios SET name = ? WHERE id = ?", (new_name, portfolio_id))
+    get_supabase().table("portfolios").update(
+        {"name": new_name}
+    ).eq("id", portfolio_id).execute()
 
 
 def update_strategy_note(portfolio_id, note):
-    with _conn() as conn:
-        conn.execute("UPDATE portfolios SET strategy_note = ? WHERE id = ?", (note, portfolio_id))
+    get_supabase().table("portfolios").update(
+        {"strategy_note": note}
+    ).eq("id", portfolio_id).execute()
 
 
 def delete_portfolio(portfolio_id):
-    with _conn() as conn:
-        conn.execute("DELETE FROM portfolios WHERE id = ?", (portfolio_id,))
+    get_supabase().table("portfolios").delete().eq("id", portfolio_id).execute()
 
 
 def list_holdings(portfolio_id):
-    with _conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM holdings WHERE portfolio_id = ? ORDER BY symbol",
-            (portfolio_id,)
-        ).fetchall()
-        return [dict(r) for r in rows]
+    res = (
+        get_supabase()
+        .table("holdings")
+        .select("*")
+        .eq("portfolio_id", portfolio_id)
+        .order("symbol")
+        .execute()
+    )
+    return res.data
 
 
 def add_holding(portfolio_id, symbol, quantity, purchase_price, purchase_date):
-    with _conn() as conn:
-        conn.execute(
-            "INSERT INTO holdings (portfolio_id, symbol, quantity, purchase_price, purchase_date)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (portfolio_id, symbol.strip().upper(), quantity, purchase_price, purchase_date)
-        )
+    get_supabase().table("holdings").insert({
+        "portfolio_id": portfolio_id,
+        "symbol": symbol.strip().upper(),
+        "quantity": quantity,
+        "purchase_price": purchase_price,
+        "purchase_date": purchase_date,
+    }).execute()
 
 
 def delete_holding(holding_id):
-    with _conn() as conn:
-        conn.execute("DELETE FROM holdings WHERE id = ?", (holding_id,))
+    get_supabase().table("holdings").delete().eq("id", holding_id).execute()
