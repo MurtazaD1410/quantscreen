@@ -1167,13 +1167,26 @@ with tab_portfolio:
     def _fetch_prices(symbols):
         import yfinance as yf
         tickers = [s if s.endswith(".NS") or s.endswith(".BO") else s + ".NS" for s in symbols]
-        prices = {}
-        for sym, ticker in zip(symbols, tickers):
-            try:
-                info = yf.Ticker(ticker).fast_info
-                prices[sym] = float(info.last_price)
-            except Exception:
-                prices[sym] = None
+        prices = {s: None for s in symbols}
+        try:
+            raw = yf.download(tickers, period="5d", auto_adjust=True, progress=False, threads=False)
+            if not raw.empty:
+                close = raw["Close"] if len(tickers) > 1 else raw[["Close"]].rename(columns={"Close": tickers[0]})
+                for sym, ticker in zip(symbols, tickers):
+                    try:
+                        val = close[ticker].dropna()
+                        if not val.empty:
+                            prices[sym] = float(val.iloc[-1])
+                    except Exception:
+                        pass
+        except Exception:
+            for sym, ticker in zip(symbols, tickers):
+                try:
+                    hist = yf.Ticker(ticker).history(period="5d")
+                    if not hist.empty:
+                        prices[sym] = float(hist["Close"].iloc[-1])
+                except Exception:
+                    pass
         return prices
 
     def _pnl_color(val):
