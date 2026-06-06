@@ -163,3 +163,41 @@ def load_benchmark(ticker: str = "^NSEI", years: int = YEARS_OF_HISTORY) -> pd.S
     except Exception as e:
         print(f"WARN: Could not load benchmark {ticker}: {e}")
         return pd.Series(dtype=float)
+
+
+def fetch_price(symbol: str) -> pd.DataFrame:
+    """
+    Fetches a single stock's OHLCV directly from yfinance (no local CSV).
+    Returns a DataFrame with timezone stripped and DatetimeIndex.
+    Raises FileNotFoundError if yfinance returns no data.
+    """
+    start = (datetime.now() - timedelta(days=YEARS_OF_HISTORY * 365)).strftime("%Y-%m-%d")
+    df = yf.Ticker(symbol).history(start=start, auto_adjust=True)
+    if df.empty:
+        raise FileNotFoundError(f"No price data returned for {symbol}")
+    idx = pd.to_datetime(df.index)
+    df.index = idx.tz_convert(None) if idx.tz is not None else idx.tz_localize(None)
+    return df
+
+
+def fetch_close_matrix(symbols: list) -> pd.DataFrame:
+    """
+    Fetches adjusted close prices for all symbols directly from yfinance (no CSVs).
+    Downloads in batches of _BATCH_SIZE to avoid rate-limiting.
+    Returns a wide DataFrame: rows = dates, columns = symbols.
+    Symbols that fail are silently skipped.
+    """
+    start = (datetime.now() - timedelta(days=YEARS_OF_HISTORY * 365)).strftime("%Y-%m-%d")
+    closes = {}
+    batches = [symbols[i: i + _BATCH_SIZE] for i in range(0, len(symbols), _BATCH_SIZE)]
+
+    for batch in batches:
+        frames = _download_batch(batch, start)
+        for sym, df in frames.items():
+            if df.empty:
+                continue
+            idx = pd.to_datetime(df.index)
+            df.index = idx.tz_convert(None) if idx.tz is not None else idx.tz_localize(None)
+            closes[sym] = df["Close"]
+
+    return pd.DataFrame(closes).sort_index() if closes else pd.DataFrame()

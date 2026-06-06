@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 from pipeline.universe    import get_index_stocks, get_symbol_metadata
-from pipeline.price_data  import load_close_matrix, load_price, load_benchmark
+from pipeline.price_data  import load_benchmark, fetch_price, fetch_close_matrix
 from pipeline.fundamentals import build_metrics_dataframe
 from pipeline.shareholding import build_holdings_dataframe
 
@@ -31,6 +31,16 @@ from app.portfolio_db import (
     init_db, list_portfolios, create_portfolio, rename_portfolio,
     delete_portfolio, update_strategy_note, list_holdings, add_holding, delete_holding,
 )
+
+
+@st.cache_data(ttl=86400)
+def _cached_close_matrix(symbols):
+    return fetch_close_matrix(list(symbols))
+
+
+@st.cache_data(ttl=86400)
+def _cached_price(symbol):
+    return fetch_price(symbol)
 
 
 def _fmt(val, decimals=1):
@@ -258,7 +268,7 @@ def _render_stock_detail(selected: str, row: pd.Series, meta: dict, factor_row=N
 
     st.markdown("**Price Chart**")
     try:
-        price_df = load_price(selected)
+        price_df = _cached_price(selected)
         ma50  = price_df["Close"].rolling(50).mean()
         ma200 = price_df["Close"].rolling(200).mean()
         fig = go.Figure()
@@ -509,7 +519,7 @@ def load_data(index_name: str):
     stocks_df  = get_index_stocks(index_name)
     symbols    = stocks_df["yf_symbol"].dropna().tolist()
     meta       = get_symbol_metadata(index_name)
-    closes     = load_close_matrix(symbols)
+    closes     = _cached_close_matrix(tuple(symbols))
     metrics    = build_metrics_dataframe(symbols)
     holdings   = build_holdings_dataframe(symbols)
     return symbols, meta, closes, metrics, holdings
@@ -520,7 +530,7 @@ def load_ohlcv_dict(symbols):
     data = {}
     for sym in symbols:
         try:
-            data[sym] = load_price(sym)
+            data[sym] = _cached_price(sym)
         except Exception:
             pass
     return data
@@ -1171,52 +1181,68 @@ with tab_portfolio:
             return "color: gray"
         return "color: #16a34a; font-weight:600" if val >= 0 else "color: #dc2626; font-weight:600"
 
-    # ── portfolio selector ───────────────────────────────────────
+    # ── Load all portfolios ──────────────────────────────────────
     portfolios = list_portfolios()
-    port_names = [p["name"] for p in portfolios]
-    port_ids   = [p["id"]   for p in portfolios]
+    port_ids   = [p["id"] for p in portfolios]
 
-    col_sel, col_new = st.columns([3, 1])
-    with col_new:
-        with st.popover("＋ New Portfolio"):
+    # ── New portfolio button (top-right) ─────────────────────────
+    _, new_col = st.columns([5, 1])
+    with new_col:
+        with st.popover("＋ New", use_container_width=True):
             new_name = st.text_input("Portfolio name", key="pf_new_name")
             if st.button("Create", key="pf_create_btn") and new_name.strip():
                 create_portfolio(new_name.strip())
-                st.session_state.pop("pf_prices", None)
                 st.rerun()
 
     if not portfolios:
-        st.info("No portfolios yet. Create one using the button above.")
+        st.info("No portfolios yet. Create one using the **＋ New** button above.")
         st.stop()
 
+    # Ensure a valid selection exists
     if "pf_selected_id" not in st.session_state or st.session_state["pf_selected_id"] not in port_ids:
         st.session_state["pf_selected_id"] = port_ids[0]
 
-    with col_sel:
-        sel_idx = port_ids.index(st.session_state["pf_selected_id"])
-        chosen_name = st.selectbox(
-            "Select portfolio", port_names, index=sel_idx, key="pf_selector",
-            label_visibility="collapsed"
-        )
-    chosen_id = port_ids[port_names.index(chosen_name)]
-    st.session_state["pf_selected_id"] = chosen_id
-    chosen_port = portfolios[port_ids.index(chosen_id)]
+    # ── Portfolio cards ──────────────────────────────────────────
+    n_cols = min(3, len(portfolios))
+    card_cols = st.columns(n_cols)
+    for i, p in enumerate(portfolios):
+        is_sel = st.session_state["pf_selected_id"] == p["id"]
+        with card_cols[i % n_cols]:
+            with st.container(border=True):
+                st.markdown(f"**{p['name']}**" + (" ✓" if is_sel else ""))
+                st.caption(f"Since {p['created_at'][:10]}")
+                if st.button(
+                    "Viewing" if is_sel else "Open →",
+                    key=f"pf_card_{p['id']}",
+                    use_container_width=True,
+                    type="primary" if is_sel else "secondary",
+                ):
+                    st.session_state["pf_selected_id"] = p["id"]
+                    st.rerun()
 
-    # ── rename / delete actions ──────────────────────────────────
-    act_col1, act_col2, _ = st.columns([1, 1, 5])
+    st.divider()
+
+    # ── Selected portfolio header (name + rename/delete) ─────────
+    chosen_id   = st.session_state["pf_selected_id"]
+    chosen_port = next(p for p in portfolios if p["id"] == chosen_id)
+    chosen_name = chosen_port["name"]
+
+    name_col, act_col1, act_col2 = st.columns([6, 1, 1])
+    with name_col:
+        st.markdown(f"### {chosen_name}")
     with act_col1:
-        with st.popover("✏️ Rename"):
+        with st.popover("✏️ Rename", use_container_width=True):
             rn_val = st.text_input("New name", value=chosen_name, key="pf_rename_val")
             if st.button("Save", key="pf_rename_btn") and rn_val.strip() and rn_val.strip() != chosen_name:
                 rename_portfolio(chosen_id, rn_val.strip())
                 st.rerun()
     with act_col2:
-        with st.popover("🗑️ Delete"):
+        with st.popover("🗑️ Delete", use_container_width=True):
             st.warning(f"Delete **{chosen_name}** and all its holdings?")
             if st.button("Yes, delete", key="pf_delete_btn"):
                 delete_portfolio(chosen_id)
                 st.session_state.pop("pf_selected_id", None)
-                st.session_state.pop("pf_prices", None)
+                st.session_state.pop(f"pf_prices_{chosen_id}", None)
                 st.rerun()
 
     st.divider()
