@@ -59,9 +59,11 @@ def _df_to_dict(df) -> dict:
 def extract_metrics(symbol: str) -> dict:
     """
     Returns a flat dict of the key metrics we use for factor scoring.
-    Reads from local JSON cache (must call download_fundamentals first).
+    Downloads from yfinance if local cache is missing.
     """
     path = _cache_path(symbol)
+    if not os.path.exists(path):
+        download_fundamentals(symbol)
     if not os.path.exists(path):
         return {"symbol": symbol}
 

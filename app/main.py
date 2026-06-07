@@ -43,6 +43,11 @@ def _cached_price(symbol):
     return fetch_price(symbol)
 
 
+@st.cache_data(ttl=3600)
+def _cached_metrics(symbols):
+    return build_metrics_dataframe(list(symbols))
+
+
 def _fmt(val, decimals=1):
     try:    return f"{float(val):.{decimals}f}"
     except: return "—"
@@ -218,11 +223,13 @@ def _apply_preset(key: str):
 def _get_live_price(symbol: str):
     try:
         import yfinance as yf
-        fi    = yf.Ticker(symbol).fast_info
-        price = getattr(fi, "last_price",      None)
-        prev  = getattr(fi, "previous_close",  None)
-        return (float(price) if price else None,
-                float(prev)  if prev  else None)
+        hist = yf.Ticker(symbol).history(period="5d", auto_adjust=True)
+        if hist.empty:
+            return None, None
+        closes = hist["Close"].dropna()
+        price = float(closes.iloc[-1]) if len(closes) >= 1 else None
+        prev  = float(closes.iloc[-2]) if len(closes) >= 2 else None
+        return price, prev
     except Exception:
         return None, None
 
@@ -520,7 +527,7 @@ def load_data(index_name: str):
     symbols    = stocks_df["yf_symbol"].dropna().tolist()
     meta       = get_symbol_metadata(index_name)
     closes     = _cached_close_matrix(tuple(symbols))
-    metrics    = build_metrics_dataframe(symbols)
+    metrics    = _cached_metrics(tuple(symbols))
     holdings   = build_holdings_dataframe(symbols)
     return symbols, meta, closes, metrics, holdings
 
@@ -1029,7 +1036,7 @@ with tab_lookup:
     if lookup_sel:
         with st.spinner(f"Loading {lookup_sel}…"):
             try:
-                mdf = build_metrics_dataframe([lookup_sel])
+                mdf = _cached_metrics((lookup_sel,))
                 lookup_row = mdf.loc[lookup_sel] if lookup_sel in mdf.index else pd.Series()
             except Exception:
                 lookup_row = pd.Series()
