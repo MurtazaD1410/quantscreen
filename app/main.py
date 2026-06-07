@@ -223,10 +223,12 @@ def _apply_preset(key: str):
 def _get_live_price(symbol: str):
     try:
         import yfinance as yf
-        hist = yf.Ticker(symbol).history(period="5d", auto_adjust=True)
-        if hist.empty:
+        raw = yf.download(symbol, period="5d", auto_adjust=True, progress=False, threads=False)
+        if raw.empty:
             return None, None
-        closes = hist["Close"].dropna()
+        if isinstance(raw.columns, pd.MultiIndex):
+            raw.columns = raw.columns.get_level_values(0)
+        closes = raw["Close"].dropna()
         price = float(closes.iloc[-1]) if len(closes) >= 1 else None
         prev  = float(closes.iloc[-2]) if len(closes) >= 2 else None
         return price, prev

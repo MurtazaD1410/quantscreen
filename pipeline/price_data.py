@@ -168,16 +168,19 @@ def load_benchmark(ticker: str = "^NSEI", years: int = YEARS_OF_HISTORY) -> pd.S
 def fetch_price(symbol: str) -> pd.DataFrame:
     """
     Fetches a single stock's OHLCV directly from yfinance (no local CSV).
-    Returns a DataFrame with timezone stripped and DatetimeIndex.
+    Uses yf.download() which is more reliable on cloud IPs than Ticker.history().
     Raises FileNotFoundError if yfinance returns no data.
     """
     start = (datetime.now() - timedelta(days=YEARS_OF_HISTORY * 365)).strftime("%Y-%m-%d")
-    df = yf.Ticker(symbol).history(start=start, auto_adjust=True)
-    if df.empty:
+    raw = yf.download(symbol, start=start, auto_adjust=True, progress=False, threads=False)
+    if raw.empty:
         raise FileNotFoundError(f"No price data returned for {symbol}")
-    idx = pd.to_datetime(df.index)
-    df.index = idx.tz_convert(None) if idx.tz is not None else idx.tz_localize(None)
-    return df
+    idx = pd.to_datetime(raw.index)
+    raw.index = idx.tz_convert(None) if idx.tz is not None else idx.tz_localize(None)
+    # yf.download for a single ticker returns flat columns (Open, High, Low, Close, Volume)
+    if isinstance(raw.columns, pd.MultiIndex):
+        raw.columns = raw.columns.get_level_values(0)
+    return raw
 
 
 def fetch_close_matrix(symbols: list) -> pd.DataFrame:
