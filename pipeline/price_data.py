@@ -60,14 +60,18 @@ def _download_batch(batch: list, start: str) -> dict[str, pd.DataFrame]:
 
     results = {}
     if len(batch) == 1:
+        # Single ticker: flatten (Price, Ticker) MultiIndex to flat columns
+        if isinstance(raw.columns, pd.MultiIndex):
+            raw.columns = raw.columns.get_level_values(0)
         results[batch[0]] = raw
     else:
         for sym in batch:
             try:
-                df = raw[sym]
+                # yf.download with group_by="ticker" → MultiIndex (Ticker, Price) — level 0
+                df = raw.xs(sym, axis=1, level=0)
                 if not df.empty:
                     results[sym] = df
-            except KeyError:
+            except Exception:
                 pass
     return results
 
