@@ -31,7 +31,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:8502/pipeline/trigger",
+        "url": "http://TRUENAS_IP:8502/pipeline/trigger",
         "options": {
           "response": {
             "response": {

@@ -1,3 +1,4 @@
+import sys
 import pytest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
@@ -40,7 +41,7 @@ def test_trigger_returns_202_when_idle(client):
     assert data["status"] == "started"
     assert data["started_at"] is not None
     args, _ = mock_popen.call_args
-    assert args[0] == ["python", "run_pipeline.py", "--index", "NSE All"]
+    assert args[0] == [sys.executable, "run_pipeline.py", "--index", "NSE All"]
 
 
 def test_trigger_returns_409_when_running(client):

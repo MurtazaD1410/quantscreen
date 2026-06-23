@@ -1,4 +1,5 @@
 import subprocess
+import sys
 import threading
 from datetime import datetime, timezone
 
@@ -23,6 +24,7 @@ def _monitor(proc):
         if proc.returncode == 0:
             _state["status"] = "idle"
             _state["last_completed"] = datetime.now(timezone.utc).isoformat()
+            _state["last_error"] = None
         else:
             _state["status"] = "failed"
             _state["last_error"] = f"exit code {proc.returncode}"
@@ -46,9 +48,9 @@ def trigger():
                 },
             )
         proc = subprocess.Popen(
-            ["python", "run_pipeline.py", "--index", "NSE All"],
+            [sys.executable, "run_pipeline.py", "--index", "NSE All"],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
         )
         now = datetime.now(timezone.utc).isoformat()
         _state["status"] = "running"
