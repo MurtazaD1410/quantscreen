@@ -35,7 +35,7 @@ def main():
     print("=" * 55)
 
     # ── Step 1: Universe ──────────────────────────────────────
-    print("\n[1/4] Fetching stock universe from NSE…")
+    print("\n[1/5] Fetching stock universe from NSE…")
     from pipeline.universe import get_index_stocks
     stocks = get_index_stocks(args.index)
     symbols = stocks["yf_symbol"].dropna().tolist()
@@ -44,7 +44,7 @@ def main():
     # ── Step 2: Price data ────────────────────────────────────
     from config import YEARS_OF_HISTORY
     from pipeline.price_data import download_price_history
-    print(f"\n[2/4] Downloading price history ({YEARS_OF_HISTORY} years)…")
+    print(f"\n[2/5] Downloading price history ({YEARS_OF_HISTORY} years)…")
     print(      "      First run: ~15–20 min. Subsequent runs: ~2–3 min.")
     t0 = time.time()
     failed_prices = download_price_history(symbols, years=YEARS_OF_HISTORY, force=args.force)
@@ -59,7 +59,7 @@ def main():
         return
 
     # ── Step 3: Fundamentals ──────────────────────────────────
-    print(f"\n[3/4] Downloading fundamental data…")
+    print(f"\n[3/5] Downloading fundamental data…")
     from pipeline.fundamentals import download_fundamentals
 
     failed_fund = []
@@ -76,7 +76,7 @@ def main():
     print(f"      ✓ Done. Failed: {len(failed_fund)} stocks.")
 
     # ── Step 4: Shareholding ──────────────────────────────────
-    print(f"\n[4/4] Extracting shareholding data…")
+    print(f"\n[4/5] Extracting shareholding data…")
     from pipeline.shareholding import build_holdings_dataframe
     import os
     from config import DATA_DIR
@@ -84,6 +84,14 @@ def main():
     out_path = os.path.join(DATA_DIR, "processed", "holdings.csv")
     holdings.to_csv(out_path)
     print(f"      ✓ Holdings saved → {out_path}")
+
+    # ── Step 5: Pre-compute metrics dataframe ─────────────────
+    print(f"\n[5/5] Pre-computing screener metrics…")
+    from pipeline.fundamentals import build_metrics_dataframe
+    metrics_df = build_metrics_dataframe(symbols)
+    metrics_path = os.path.join(DATA_DIR, "processed", "metrics.parquet")
+    metrics_df.to_parquet(metrics_path)
+    print(f"      ✓ Metrics saved → {metrics_path} ({len(metrics_df)} stocks)")
 
     print("\n" + "=" * 55)
     print("  ✅ Data refresh complete!")

@@ -26,7 +26,7 @@ from app.portfolio_db import (
     rename_portfolio,
     update_strategy_note,
 )
-from config import BACKTEST, DEFAULT_WEIGHTS, NIFTY50_TICKER
+from config import BACKTEST, DATA_DIR, DEFAULT_WEIGHTS, NIFTY50_TICKER
 from engine.backtester import run_backtest
 from engine.composite import compute_composite
 from engine.holdings_factor import score_holdings
@@ -736,7 +736,14 @@ def load_data(index_name: str):
     symbols = stocks_df["yf_symbol"].dropna().tolist()
     meta = get_symbol_metadata(index_name)
     closes = load_close_matrix(symbols)
-    metrics = build_metrics_dataframe(symbols)
+
+    metrics_path = os.path.join(DATA_DIR, "processed", "metrics.parquet")
+    if os.path.exists(metrics_path):
+        full_metrics = pd.read_parquet(metrics_path)
+        metrics = full_metrics[full_metrics.index.isin(symbols)]
+    else:
+        metrics = build_metrics_dataframe(symbols)
+
     holdings = build_holdings_dataframe(symbols)
     return symbols, meta, closes, metrics, holdings
 
