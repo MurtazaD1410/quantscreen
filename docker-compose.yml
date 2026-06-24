@@ -5,6 +5,7 @@ services:
     ports:
       - "8501:8501"
     volumes:
+      - .:/app
       - quantscreen-data:/app/data
     restart: unless-stopped
 
@@ -15,6 +16,7 @@ services:
     ports:
       - "8502:8502"
     volumes:
+      - .:/app
       - quantscreen-data:/app/data
     restart: unless-stopped
 
