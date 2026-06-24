@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "command": "cd /mnt/tank/quantscreen && git pull && docker compose up --build -d"
+        "command": "cd /mnt/main/apps/quantscreen && git pull && docker compose restart"
       },
       "id": "a1b2c3d4-0000-0000-0000-000000000002",
       "name": "Git Pull & Rebuild",
