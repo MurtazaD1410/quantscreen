@@ -13,6 +13,7 @@
 import sys
 import time
 import argparse
+import pandas as pd
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -90,6 +91,20 @@ def main():
     from pipeline.fundamentals import build_metrics_dataframe
     metrics_df = build_metrics_dataframe(symbols)
     metrics_path = os.path.join(DATA_DIR, "processed", "metrics.parquet")
+
+    # Merge with existing parquet so a smaller run (e.g. NIFTY 50) doesn't
+    # wipe out data from a previous larger run (e.g. NSE All).
+    if os.path.exists(metrics_path):
+        try:
+            existing = pd.read_parquet(metrics_path)
+            existing.update(metrics_df)           # refresh rows we just processed
+            new_syms = metrics_df.index.difference(existing.index)
+            if not new_syms.empty:
+                existing = pd.concat([existing, metrics_df.loc[new_syms]])
+            metrics_df = existing
+        except Exception as e:
+            print(f"      WARN: could not merge existing metrics ({e}), overwriting.")
+
     metrics_df.to_parquet(metrics_path)
     print(f"      ✓ Metrics saved → {metrics_path} ({len(metrics_df)} stocks)")
 

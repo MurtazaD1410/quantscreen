@@ -147,9 +147,9 @@ uvicorn[standard]>=0.29.0
 1. **Schedule Trigger** — cron `0 7 * * *` and `0 13 * * *` (7:00 AM, 1:00 PM daily)
 2. **Execute Command** — shell command:
    ```bash
-   cd /mnt/tank/quantscreen && git pull && docker compose up --build -d
+   cd /mnt/apps/quantscreen && git pull && docker compose up --build -d
    ```
-   Placeholder path `/mnt/tank/quantscreen` — update to actual clone location.
+   Placeholder path `/mnt/apps/quantscreen` — update to actual clone location.
 3. **HTTP Request** — `POST http://localhost:8502/pipeline/trigger`
 4. **IF** — condition: `{{ $json.statusCode }} === 202`
    - `true` branch → Telegram success node
@@ -172,8 +172,8 @@ uvicorn[standard]>=0.29.0
 
 ```bash
 # 1. Clone the repo (adjust path to your TrueNAS pool/dataset)
-git clone https://github.com/<your-username>/quantscreen.git /mnt/tank/quantscreen
-cd /mnt/tank/quantscreen
+git clone https://github.com/MurtazaD1410/quantscreen.git /mnt/apps/quantscreen
+cd /mnt/apps/quantscreen
 
 # 2. Build and start both containers
 docker compose up --build -d
@@ -197,7 +197,7 @@ docker compose exec pipeline python run_pipeline.py --index "NSE All"
 ## Deployment — Update (git pull + rebuild)
 
 ```bash
-cd /mnt/tank/quantscreen
+cd /mnt/apps/quantscreen
 git pull
 docker compose up --build -d
 # Both containers restart with new code; named volume data is preserved

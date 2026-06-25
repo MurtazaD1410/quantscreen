@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 import threading
@@ -47,8 +48,9 @@ def trigger():
                     "started_at": _state["started_at"],
                 },
             )
+        index = os.environ.get("PIPELINE_INDEX", "NIFTY 50")
         proc = subprocess.Popen(
-            [sys.executable, "run_pipeline.py", "--index", "NSE All"],
+            [sys.executable, "run_pipeline.py", "--index", index],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )

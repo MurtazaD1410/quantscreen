@@ -1650,7 +1650,7 @@ with tab_portfolio:
     if holdings:
         total_invested = sum(h["quantity"] * h["purchase_price"] for h in holdings)
         total_current = sum(
-            h["quantity"] * prices.get(h["symbol"], h["purchase_price"])
+            h["quantity"] * (prices.get(h["symbol"]) or h["purchase_price"])
             for h in holdings
         )
         total_pnl_rs = total_current - total_invested
