@@ -834,6 +834,26 @@ with tab_screen:
         filtered_metrics = metrics.reindex(filtered_syms)
         filtered_holdings = holdings.reindex(filtered_syms)
 
+        # Warn when price-based factors are selected but no price data is available
+        if filtered_closes.empty:
+            price_factors_on = [
+                name for name, tog in [
+                    ("Momentum", use_momentum),
+                    ("Low Volatility", use_lowvol),
+                    ("Mean Reversion", use_meanrev),
+                ]
+                if tog
+            ]
+            if price_factors_on:
+                st.warning(
+                    f"⚠️ **{', '.join(price_factors_on)}** "
+                    f"{'factor' if len(price_factors_on) == 1 else 'factors'} disabled — "
+                    f"no price data found. The screener is running on the remaining factors only, "
+                    f"which changes the effective weights.  \n"
+                    f'Run `python run_pipeline.py --index "{universe}"` to download price data.',
+                    icon="⚠️",
+                )
+
         with st.spinner("Computing factor scores…"):
             val_s = score_value(filtered_metrics) if use_value else None
             qual_s = score_quality(filtered_metrics) if use_quality else None
