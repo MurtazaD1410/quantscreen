@@ -3,78 +3,14 @@
   "nodes": [
     {
       "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "cronExpression",
-              "expression": "0 7,13 * * *"
-            }
-          ]
-        }
-      },
-      "id": "a1b2c3d4-0000-0000-0000-000000000001",
-      "name": "Schedule (7AM + 1PM)",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.1,
-      "position": [240, 300]
-    },
-    {
-      "parameters": {
-        "command": "cd /mnt/main/apps/quantscreen && git pull && docker compose restart"
-      },
-      "id": "a1b2c3d4-0000-0000-0000-000000000002",
-      "name": "Git Pull & Rebuild",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
-      "position": [460, 300]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "http://TRUENAS_IP:8502/pipeline/trigger",
-        "options": {
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
-        }
-      },
-      "id": "a1b2c3d4-0000-0000-0000-000000000003",
-      "name": "Trigger Pipeline",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [680, 300]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "string": [
-            {
-              "value1": "={{ $json.status }}",
-              "operation": "equal",
-              "value2": "started"
-            }
-          ]
-        }
-      },
-      "id": "a1b2c3d4-0000-0000-0000-000000000004",
-      "name": "Triggered OK?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [900, 300]
-    },
-    {
-      "parameters": {
-        "chatId": "YOUR_CHAT_ID",
-        "text": "✅ QuantScreen pipeline triggered — NSE All refresh started at {{ $now.toISO() }}",
+        "updates": ["message"],
         "additionalFields": {}
       },
-      "id": "a1b2c3d4-0000-0000-0000-000000000005",
-      "name": "Telegram Success",
-      "type": "n8n-nodes-base.telegram",
+      "id": "a1b2c3d4-0000-0000-0000-000000000001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.1,
-      "position": [1120, 180],
+      "position": [240, 300],
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_WITH_CREDENTIAL_ID",
@@ -84,15 +20,43 @@
     },
     {
       "parameters": {
-        "chatId": "YOUR_CHAT_ID",
-        "text": "⏳ QuantScreen pipeline already running since {{ $json.started_at }} — skipping trigger",
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.message.text }}",
+              "operation": "contains",
+              "value2": "/refresh"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0000-0000-0000-000000000002",
+      "name": "Is /refresh command?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "command": "cd /mnt/main/apps/quantscreen && git pull && docker compose restart"
+      },
+      "id": "a1b2c3d4-0000-0000-0000-000000000003",
+      "name": "Git Pull & Restart App",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [680, 180]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "✅ QuantScreen restarted with latest data.\n\n📅 {{ $now.toFormat('dd MMM yyyy HH:mm') }}",
         "additionalFields": {}
       },
-      "id": "a1b2c3d4-0000-0000-0000-000000000006",
-      "name": "Telegram Already Running",
+      "id": "a1b2c3d4-0000-0000-0000-000000000004",
+      "name": "Telegram Done",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.1,
-      "position": [1120, 420],
+      "position": [900, 180],
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_WITH_CREDENTIAL_ID",
@@ -102,11 +66,11 @@
     },
     {
       "parameters": {},
-      "id": "a1b2c3d4-0000-0000-0000-000000000007",
+      "id": "a1b2c3d4-0000-0000-0000-000000000005",
       "name": "On Workflow Error",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
-      "position": [240, 560]
+      "position": [240, 520]
     },
     {
       "parameters": {
@@ -114,11 +78,11 @@
         "text": "🚨 QuantScreen workflow error — {{ $json.execution.error.message }}",
         "additionalFields": {}
       },
-      "id": "a1b2c3d4-0000-0000-0000-000000000008",
+      "id": "a1b2c3d4-0000-0000-0000-000000000006",
       "name": "Telegram Error",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.1,
-      "position": [460, 560],
+      "position": [460, 520],
       "credentials": {
         "telegramApi": {
           "id": "REPLACE_WITH_CREDENTIAL_ID",
@@ -128,25 +92,20 @@
     }
   ],
   "connections": {
-    "Schedule (7AM + 1PM)": {
+    "Telegram Trigger": {
       "main": [
-        [{"node": "Git Pull & Rebuild", "type": "main", "index": 0}]
+        [{"node": "Is /refresh command?", "type": "main", "index": 0}]
       ]
     },
-    "Git Pull & Rebuild": {
+    "Is /refresh command?": {
       "main": [
-        [{"node": "Trigger Pipeline", "type": "main", "index": 0}]
+        [{"node": "Git Pull & Restart App", "type": "main", "index": 0}],
+        []
       ]
     },
-    "Trigger Pipeline": {
+    "Git Pull & Restart App": {
       "main": [
-        [{"node": "Triggered OK?", "type": "main", "index": 0}]
-      ]
-    },
-    "Triggered OK?": {
-      "main": [
-        [{"node": "Telegram Success", "type": "main", "index": 0}],
-        [{"node": "Telegram Already Running", "type": "main", "index": 0}]
+        [{"node": "Telegram Done", "type": "main", "index": 0}]
       ]
     },
     "On Workflow Error": {
